@@ -90,7 +90,6 @@ export default async function handler(req, res) {
       const trimmed = line.trim();
       if (!trimmed) continue;
 
-      // Detect headings (short lines that look like titles)
       const isHeading = trimmed.length < 50 && !trimmed.endsWith('。') && !trimmed.endsWith('.') && !trimmed.includes('，');
 
       if (isHeading && children.length > 0) {
@@ -102,6 +101,7 @@ export default async function handler(req, res) {
                 bold: true,
                 size: 28,
                 font: 'Microsoft YaHei',
+                eastAsia: '微软雅黑',
               }),
             ],
             heading: HeadingLevel.HEADING_2,
@@ -116,6 +116,7 @@ export default async function handler(req, res) {
                 text: trimmed,
                 size: 22,
                 font: 'Microsoft YaHei',
+                eastAsia: '微软雅黑',
               }),
             ],
             spacing: { after: 120 },
@@ -124,7 +125,6 @@ export default async function handler(req, res) {
       }
     }
 
-    // Add metadata
     children.unshift(
       new Paragraph({
         children: [
@@ -133,6 +133,7 @@ export default async function handler(req, res) {
             bold: true,
             size: 36,
             font: 'Microsoft YaHei',
+            eastAsia: '微软雅黑',
           }),
         ],
         heading: HeadingLevel.HEADING_1,
