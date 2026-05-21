@@ -65,11 +65,21 @@ export default async function handler(req, res) {
     }
 
     // Parse PDF
-    const pdfData = await pdf(filePart.data);
-    const text = pdfData.text || '';
+    let text;
+    try {
+      const pdfData = await pdf(filePart.data);
+      text = pdfData.text || '';
+    } catch (parseError) {
+      console.error('PDF parsing error:', parseError);
+      return res.status(400).json({ 
+        error: '无法解析PDF文件内容。可能是扫描版PDF或加密PDF，请确保PDF包含可提取的文字内容。' 
+      });
+    }
 
     if (!text.trim()) {
-      return res.status(400).json({ error: 'PDF文件内容为空或无法解析' });
+      return res.status(400).json({ 
+        error: 'PDF文件内容为空。这可能是扫描版PDF（图片转PDF），请使用包含文字内容的PDF文件。' 
+      });
     }
 
     // Build Word document

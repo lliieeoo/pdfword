@@ -1,5 +1,6 @@
 import mammoth from 'mammoth';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument, rgb } from 'pdf-lib';
+import fontkit from '@pdf-lib/fontkit';
 
 export const config = {
   api: {
@@ -7,6 +8,47 @@ export const config = {
     responseLimit: false,
   },
 };
+
+async function loadChineseFont(pdfDoc) {
+  try {
+    const fontUrl = 'https://cdn.jsdelivr.net/npm/chinese-font@latest/dist/NotoSansSC-Regular.ttf';
+    const fontResponse = await fetch(fontUrl);
+    if (!fontResponse.ok) {
+      throw new Error('Failed to fetch font');
+    }
+    const fontBytes = await fontResponse.arrayBuffer();
+    pdfDoc.registerFontkit(fontkit);
+    return await pdfDoc.embedFont(fontBytes);
+  } catch (error) {
+    console.warn('Failed to load Chinese font, using fallback:', error);
+    const fontUrl2 = 'https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansSC-Regular.otf';
+    try {
+      const fontResponse2 = await fetch(fontUrl2);
+      if (!fontResponse2.ok) throw new Error('Fallback font failed');
+      const fontBytes2 = await fontResponse2.arrayBuffer();
+      pdfDoc.registerFontkit(fontkit);
+      return await pdfDoc.embedFont(fontBytes2);
+    } catch (error2) {
+      const cdnFonts = [
+        'https://fonts.gstatic.com/s/notosanssc/v36/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaG9_FnYxNbPzS5HE.woff2',
+        'https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/webfonts/fa-solid-900.ttf'
+      ];
+      for (const url of cdnFonts) {
+        try {
+          const resp = await fetch(url);
+          if (resp.ok) {
+            const bytes = await resp.arrayBuffer();
+            pdfDoc.registerFontkit(fontkit);
+            return await pdfDoc.embedFont(bytes);
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+      throw new Error('Unable to load any Chinese font');
+    }
+  }
+}
 
 function parseMultipart(buf, boundary) {
   const parts = [];
@@ -98,12 +140,12 @@ export default async function handler(req, res) {
     const plainText = stripHtml(html);
 
     if (!plainText.trim()) {
-      return res.status(400).json({ error: 'Word文件内容为空' });
+      return res.status(400).json({ error: 'Word文件内容为空，无法提取文字进行转换' });
     }
 
     // Create PDF
     const pdfDoc = await PDFDocument.create();
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const font = await loadChineseFont(pdfDoc);
     const fontSize = 12;
     const margin = 50;
     const pageWidth = 595.28; // A4
