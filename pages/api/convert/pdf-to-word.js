@@ -100,8 +100,10 @@ export default async function handler(req, res) {
                 text: trimmed,
                 bold: true,
                 size: 28,
-                font: 'Microsoft YaHei',
-                eastAsia: '微软雅黑',
+                font: {
+                  name: 'Microsoft YaHei',
+                  eastAsia: '微软雅黑',
+                },
               }),
             ],
             heading: HeadingLevel.HEADING_2,
@@ -115,8 +117,10 @@ export default async function handler(req, res) {
               new TextRun({
                 text: trimmed,
                 size: 22,
-                font: 'Microsoft YaHei',
-                eastAsia: '微软雅黑',
+                font: {
+                  name: 'Microsoft YaHei',
+                  eastAsia: '微软雅黑',
+                },
               }),
             ],
             spacing: { after: 120 },
@@ -132,8 +136,10 @@ export default async function handler(req, res) {
             text: filePart.filename ? filePart.filename.replace(/\.pdf$/i, '') : 'PDF Document',
             bold: true,
             size: 36,
-            font: 'Microsoft YaHei',
-            eastAsia: '微软雅黑',
+            font: {
+              name: 'Microsoft YaHei',
+              eastAsia: '微软雅黑',
+            },
           }),
         ],
         heading: HeadingLevel.HEADING_1,
