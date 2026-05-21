@@ -17,10 +17,14 @@ async function loadChineseFont(pdfDoc) {
   const fontPaths = [
     path.join(process.cwd(), 'fonts/NotoSansSC-Regular.otf'),
     '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+    '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
     '/usr/share/fonts/truetype/arphic/ukai.ttc',
     '/usr/share/fonts/truetype/arphic/uming.ttc',
     '/usr/share/fonts/opentype/noto/NotoSansCJK-SC.otf',
     '/usr/share/fonts/truetype/noto/NotoSansSC-Regular.ttf',
+    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+    '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+    '/usr/share/fonts/truetype/freefont/FreeSans.ttf',
   ];
   
   for (const fontPath of fontPaths) {
@@ -36,14 +40,14 @@ async function loadChineseFont(pdfDoc) {
   }
   
   const cdnUrls = [
-    'https://fonts.gstatic.com/s/notosanssc/v36/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaG9_FnYxNbPzS5HE.woff2',
-    'https://fonts.gstatic.com/s/notosanssc/v36/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaG9_FnYxNbPzS5HE.woff2',
-    'https://cdn.jsdelivr.net/npm/noto-sans-sc@latest/fonts/NotoSansSC-Regular.woff2',
+    'https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansSC-Regular.otf',
+    'https://raw.githubusercontent.com/googlefonts/noto-cjk/main/Sans/OTF/SimplifiedChinese/NotoSansSC-Regular.otf',
+    'https://cdn.jsdelivr.net/gh/googlefonts/noto-cjk@main/Sans/OTF/SimplifiedChinese/NotoSansSC-Regular.otf',
   ];
   
   for (const url of cdnUrls) {
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, { timeout: 10000 });
       if (!response.ok) continue;
       const fontBytes = await response.arrayBuffer();
       return await pdfDoc.embedFont(fontBytes);
@@ -53,7 +57,7 @@ async function loadChineseFont(pdfDoc) {
     }
   }
   
-  throw new Error('No Chinese font found.');
+  throw new Error('无法加载中文字体，请检查网络连接或联系管理员');
 }
 
 function parseMultipart(buf, boundary) {
