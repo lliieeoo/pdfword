@@ -1,8 +1,6 @@
 import mammoth from 'mammoth';
-import { PDFDocument, rgb } from 'pdf-lib';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
-import fs from 'fs';
-import path from 'path';
 
 export const config = {
   api: {
@@ -13,31 +11,6 @@ export const config = {
 
 async function loadChineseFont(pdfDoc) {
   pdfDoc.registerFontkit(fontkit);
-  
-  const fontPaths = [
-    path.join(process.cwd(), 'fonts/NotoSansSC-Regular.otf'),
-    '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
-    '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
-    '/usr/share/fonts/truetype/arphic/ukai.ttc',
-    '/usr/share/fonts/truetype/arphic/uming.ttc',
-    '/usr/share/fonts/opentype/noto/NotoSansCJK-SC.otf',
-    '/usr/share/fonts/truetype/noto/NotoSansSC-Regular.ttf',
-    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-    '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
-    '/usr/share/fonts/truetype/freefont/FreeSans.ttf',
-  ];
-  
-  for (const fontPath of fontPaths) {
-    if (fs.existsSync(fontPath)) {
-      try {
-        const fontBytes = fs.readFileSync(fontPath);
-        return await pdfDoc.embedFont(fontBytes);
-      } catch (e) {
-        console.warn(`Failed to load font from ${fontPath}:`, e);
-        continue;
-      }
-    }
-  }
   
   const cdnUrls = [
     'https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansSC-Regular.otf',
@@ -63,8 +36,8 @@ async function loadChineseFont(pdfDoc) {
     }
   }
   
-  console.error('All font loading attempts failed');
-  throw new Error('无法加载中文字体，请检查网络连接或联系管理员');
+  console.warn('Falling back to Helvetica');
+  return await pdfDoc.embedFont(StandardFonts.Helvetica);
 }
 
 function parseMultipart(buf, boundary) {
@@ -98,7 +71,6 @@ function parseMultipart(buf, boundary) {
   return parts;
 }
 
-// Strip HTML tags and convert entities
 function stripHtml(html) {
   return html
     .replace(/<br\s*\/?>/gi, '\n')
@@ -145,7 +117,6 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: '未找到上传的文件' });
     }
 
-    // Convert DOCX to HTML using mammoth
     const result = await mammoth.convertToHtml({ buffer: filePart.data });
     const html = result.value;
 
@@ -153,19 +124,17 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Word文件内容为空或无法解析' });
     }
 
-    // Strip HTML to plain text
     const plainText = stripHtml(html);
 
     if (!plainText.trim()) {
       return res.status(400).json({ error: 'Word文件内容为空，无法提取文字进行转换' });
     }
 
-    // Create PDF
     const pdfDoc = await PDFDocument.create();
     const font = await loadChineseFont(pdfDoc);
     const fontSize = 12;
     const margin = 50;
-    const pageWidth = 595.28; // A4
+    const pageWidth = 595.28;
     const pageHeight = 841.89;
     const maxWidth = pageWidth - margin * 2;
     const lineHeight = fontSize * 1.5;
@@ -182,13 +151,11 @@ export default async function handler(req, res) {
         continue;
       }
 
-      // Check if we need a new page
       if (y < margin + lineHeight) {
         page = pdfDoc.addPage([pageWidth, pageHeight]);
         y = pageHeight - margin;
       }
 
-      // Word wrap
       const words = line.split('');
       let currentLine = '';
 
@@ -216,7 +183,6 @@ export default async function handler(req, res) {
         }
       }
 
-      // Draw remaining text
       if (currentLine) {
         if (y < margin + lineHeight) {
           page = pdfDoc.addPage([pageWidth, pageHeight]);
