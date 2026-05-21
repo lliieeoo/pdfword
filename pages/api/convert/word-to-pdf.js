@@ -35,6 +35,24 @@ async function loadChineseFont(pdfDoc) {
     }
   }
   
+  const cdnUrls = [
+    'https://fonts.gstatic.com/s/notosanssc/v36/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaG9_FnYxNbPzS5HE.woff2',
+    'https://fonts.gstatic.com/s/notosanssc/v36/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaG9_FnYxNbPzS5HE.woff2',
+    'https://cdn.jsdelivr.net/npm/noto-sans-sc@latest/fonts/NotoSansSC-Regular.woff2',
+  ];
+  
+  for (const url of cdnUrls) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) continue;
+      const fontBytes = await response.arrayBuffer();
+      return await pdfDoc.embedFont(fontBytes);
+    } catch (e) {
+      console.warn(`Failed to load font from ${url}:`, e);
+      continue;
+    }
+  }
+  
   throw new Error('No Chinese font found.');
 }
 
