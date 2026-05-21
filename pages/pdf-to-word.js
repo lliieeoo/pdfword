@@ -1,239 +1,165 @@
-import { useState, useRef, useCallback } from 'react';
-import Head from 'next/head';
+import pdf from 'pdf-parse';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from 'docx';
 
-export default function PdfToWord() {
-  const [file, setFile] = useState(null);
-  const [converting, setConverting] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
-  const inputRef = useRef(null);
-  const [dragover, setDragover] = useState(false);
+export const config = {
+  api: {
+    bodyParser: false,
+    responseLimit: false,
+  },
+};
 
-  const handleFile = useCallback((f) => {
-    if (!f) return;
-    if (f.type !== 'application/pdf') {
-      setError('请选择PDF文件');
-      return;
+function parseMultipart(buf, boundary) {
+  const parts = [];
+  const boundaryStr = '--' + boundary;
+  const str = buf.toString('latin1');
+  let start = str.indexOf(boundaryStr);
+
+  while (start !== -1) {
+    const headerEnd = str.indexOf('\r\n\r\n', start);
+    if (headerEnd === -1) break;
+    const bodyStart = headerEnd + 4;
+    const nextBoundary = str.indexOf(boundaryStr, bodyStart);
+    if (nextBoundary === -1) break;
+    const bodyEnd = nextBoundary - 2;
+
+    const headerBlock = str.substring(start + boundaryStr.length + 2, headerEnd);
+    const nameMatch = headerBlock.match(/name="([^"]+)"/);
+    const filenameMatch = headerBlock.match(/filename="([^"]+)"/);
+
+    if (nameMatch) {
+      const name = nameMatch[1];
+      const filename = filenameMatch ? filenameMatch[1] : null;
+      const body = buf.slice(bodyStart, bodyEnd);
+      parts.push({ name, filename, data: body });
     }
-    setFile(f);
-    setResult(null);
-    setError(null);
-    setProgress(0);
-  }, []);
 
-  const handleDrop = useCallback((e) => {
-    e.preventDefault();
-    setDragover(false);
-    const f = e.dataTransfer.files[0];
-    handleFile(f);
-  }, [handleFile]);
+    start = nextBoundary;
+  }
 
-  const handleConvert = async () => {
-    if (!file) return;
-    setConverting(true);
-    setProgress(10);
-    setError(null);
-    setResult(null);
+  return parts;
+}
 
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: '请使用POST方法' });
+  }
+
+  try {
+    const chunks = [];
+    for await (const chunk of req) {
+      chunks.push(chunk);
+    }
+    const buf = Buffer.concat(chunks);
+
+    const contentType = req.headers['content-type'] || '';
+    const boundaryMatch = contentType.match(/boundary=(.+)/);
+    if (!boundaryMatch) {
+      return res.status(400).json({ error: '无效的请求格式' });
+    }
+
+    const parts = parseMultipart(buf, boundaryMatch[1]);
+    const filePart = parts.find(p => p.name === 'file');
+
+    if (!filePart || !filePart.data) {
+      return res.status(400).json({ error: '未找到上传的文件' });
+    }
+
+    let text;
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      setProgress(30);
-
-      const res = await fetch('/api/convert/pdf-to-word', {
-        method: 'POST',
-        body: formData,
+      const pdfData = await pdf(filePart.data);
+      text = pdfData.text || '';
+    } catch (parseError) {
+      console.error('PDF parsing error:', parseError);
+      return res.status(400).json({ 
+        error: '无法解析PDF文件内容。可能是扫描版PDF或加密PDF，请确保PDF包含可提取的文字内容。' 
       });
-
-      setProgress(70);
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || '转换失败，请重试');
-      }
-
-      setProgress(90);
-
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const fileName = file.name.replace(/\.pdf$/i, '.docx');
-
-      // Save to history
-      const history = JSON.parse(localStorage.getItem('convertHistory') || '[]');
-      history.unshift({
-        id: Date.now(),
-        type: 'PDF → Word',
-        fileName: file.name,
-        outputName: fileName,
-        size: file.size,
-        status: 'success',
-        date: new Date().toLocaleString('zh-CN'),
-      });
-      localStorage.setItem('convertHistory', JSON.stringify(history.slice(0, 50)));
-
-      setResult({ url, fileName });
-      setProgress(100);
-    } catch (err) {
-      setError(err.message);
-
-      // Save failed to history
-      const history = JSON.parse(localStorage.getItem('convertHistory') || '[]');
-      history.unshift({
-        id: Date.now(),
-        type: 'PDF → Word',
-        fileName: file.name,
-        size: file.size,
-        status: 'error',
-        date: new Date().toLocaleString('zh-CN'),
-      });
-      localStorage.setItem('convertHistory', JSON.stringify(history.slice(0, 50)));
-    } finally {
-      setConverting(false);
     }
-  };
 
-  const handleDownload = () => {
-    if (!result) return;
-    const a = document.createElement('a');
-    a.href = result.url;
-    a.download = result.fileName;
-    a.click();
-  };
+    if (!text.trim()) {
+      return res.status(400).json({ 
+        error: 'PDF文件内容为空。这可能是扫描版PDF（图片转PDF），请使用包含文字内容的PDF文件。' 
+      });
+    }
 
-  const formatSize = (bytes) => {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  };
+    const lines = text.split('\n').filter(l => l.trim());
+    const children = [];
 
-  return (
-    <>
-      <Head>
-        <title>PDF转Word - PDF-Word转换器</title>
-      </Head>
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
 
-      <h1 className="page-title">PDF 转 Word</h1>
-      <p className="page-desc">上传PDF文件，快速转换为可编辑的Word文档</p>
+      const isHeading = trimmed.length < 50 && !trimmed.endsWith('。') && !trimmed.endsWith('.') && !trimmed.includes('，');
 
-      <div className="card">
-        <div
-          className={`upload-area ${dragover ? 'dragover' : ''}`}
-          onClick={() => inputRef.current?.click()}
-          onDragOver={(e) => { e.preventDefault(); setDragover(true); }}
-          onDragLeave={() => setDragover(false)}
-          onDrop={handleDrop}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="17 8 12 3 7 8" />
-            <line x1="12" y1="3" x2="12" y2="15" />
-          </svg>
-          <h3>点击或拖拽文件到此处</h3>
-          <p>支持 .pdf 格式，最大 50MB</p>
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".pdf"
-            style={{ display: 'none' }}
-            onChange={(e) => handleFile(e.target.files[0])}
-          />
-        </div>
+      if (isHeading && children.length > 0) {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: trimmed,
+                bold: true,
+                size: 28,
+                font: {
+                  name: 'Microsoft YaHei',
+                  eastAsia: '微软雅黑',
+                },
+              }),
+            ],
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 240, after: 120 },
+          })
+        );
+      } else {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: trimmed,
+                size: 22,
+                font: {
+                  name: 'Microsoft YaHei',
+                  eastAsia: '微软雅黑',
+                },
+              }),
+            ],
+            spacing: { after: 120 },
+          })
+        );
+      }
+    }
 
-        {file && (
-          <div className="file-info">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-            </svg>
-            <div>
-              <div className="file-name">{file.name}</div>
-              <div className="file-size">{formatSize(file.size)}</div>
-            </div>
-            <button className="file-remove" onClick={() => { setFile(null); setResult(null); setError(null); }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          </div>
-        )}
+    children.unshift(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: filePart.filename ? filePart.filename.replace(/\.pdf$/i, '') : 'PDF Document',
+            bold: true,
+            size: 36,
+            font: {
+              name: 'Microsoft YaHei',
+              eastAsia: '微软雅黑',
+            },
+          }),
+        ],
+        heading: HeadingLevel.HEADING_1,
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 400 },
+      })
+    );
 
-        {converting && (
-          <>
-            <div className="progress-bar">
-              <div className="progress-fill" style={{ width: `${progress}%` }} />
-            </div>
-            <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '14px' }}>
-              正在转换中... {progress}%
-            </p>
-          </>
-        )}
+    const doc = new Document({
+      sections: [{
+        properties: {},
+        children,
+      }],
+    });
 
-        {result && (
-          <div className="result-area success">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-              <polyline points="22 4 12 14.01 9 11.01" />
-            </svg>
-            <div style={{ flex: 1 }}>
-              <strong>转换成功！</strong>
-              <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{result.fileName}</div>
-            </div>
-            <button className="btn btn-success" onClick={handleDownload}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-              下载文件
-            </button>
-          </div>
-        )}
+    const docxBuf = await Packer.toBuffer(doc);
 
-        {error && (
-          <div className="result-area error">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="15" y1="9" x2="9" y2="15" />
-              <line x1="9" y1="9" x2="15" y2="15" />
-            </svg>
-            <div>
-              <strong>转换失败</strong>
-              <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{error}</div>
-            </div>
-          </div>
-        )}
-
-        <div className="convert-actions">
-          <button
-            className="btn btn-primary"
-            disabled={!file || converting}
-            onClick={handleConvert}
-          >
-            {converting ? (
-              <>
-                <span className="spinner" />
-                转换中...
-              </>
-            ) : (
-              <>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="16 3 21 3 21 8" />
-                  <line x1="4" y1="20" x2="21" y2="3" />
-                </svg>
-                开始转换
-              </>
-            )}
-          </button>
-          {file && !converting && (
-            <button className="btn btn-secondary" onClick={() => { setFile(null); setResult(null); setError(null); }}>
-              重新选择
-            </button>
-          )}
-        </div>
-      </div>
-    </>
-  );
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', 'attachment; filename="converted.docx"');
+    res.send(docxBuf);
+  } catch (err) {
+    console.error('PDF to Word conversion error:', err);
+    res.status(500).json({ error: '转换失败: ' + (err.message || '未知错误') });
+  }
 }
