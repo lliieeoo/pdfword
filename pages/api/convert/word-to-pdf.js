@@ -43,11 +43,17 @@ async function loadChineseFont(pdfDoc) {
     'https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansSC-Regular.otf',
     'https://raw.githubusercontent.com/googlefonts/noto-cjk/main/Sans/OTF/SimplifiedChinese/NotoSansSC-Regular.otf',
     'https://cdn.jsdelivr.net/gh/googlefonts/noto-cjk@main/Sans/OTF/SimplifiedChinese/NotoSansSC-Regular.otf',
+    'https://fonts.gstatic.com/s/notosanssc/v36/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaG9_FnYxNbPzS5HE.woff2',
   ];
   
   for (const url of cdnUrls) {
     try {
-      const response = await fetch(url, { timeout: 10000 });
+      const response = await fetch(url, { 
+        timeout: 15000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
       if (!response.ok) continue;
       const fontBytes = await response.arrayBuffer();
       return await pdfDoc.embedFont(fontBytes);
@@ -57,6 +63,7 @@ async function loadChineseFont(pdfDoc) {
     }
   }
   
+  console.error('All font loading attempts failed');
   throw new Error('无法加载中文字体，请检查网络连接或联系管理员');
 }
 
