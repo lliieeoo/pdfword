@@ -1,8 +1,5 @@
 import mammoth from 'mammoth';
-import { PDFDocument, rgb } from 'pdf-lib';
-import fontkit from '@pdf-lib/fontkit';
-import fs from 'fs';
-import path from 'path';
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
 export const config = {
   api: {
@@ -10,62 +7,6 @@ export const config = {
     responseLimit: false,
   },
 };
-
-async function loadChineseFont(pdfDoc) {
-  pdfDoc.registerFontkit(fontkit);
-  
-  const fontPaths = [
-    path.join(process.cwd(), 'fonts/NotoSansSC-Regular.otf'),
-    '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
-    '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
-    '/usr/share/fonts/truetype/arphic/ukai.ttc',
-    '/usr/share/fonts/truetype/arphic/uming.ttc',
-    '/usr/share/fonts/opentype/noto/NotoSansCJK-SC.otf',
-    '/usr/share/fonts/truetype/noto/NotoSansSC-Regular.ttf',
-    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-    '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
-    '/usr/share/fonts/truetype/freefont/FreeSans.ttf',
-  ];
-  
-  for (const fontPath of fontPaths) {
-    if (fs.existsSync(fontPath)) {
-      try {
-        const fontBytes = fs.readFileSync(fontPath);
-        return await pdfDoc.embedFont(fontBytes);
-      } catch (e) {
-        console.warn(`Failed to load font from ${fontPath}:`, e);
-        continue;
-      }
-    }
-  }
-  
-  const cdnUrls = [
-    'https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansSC-Regular.otf',
-    'https://raw.githubusercontent.com/googlefonts/noto-cjk/main/Sans/OTF/SimplifiedChinese/NotoSansSC-Regular.otf',
-    'https://cdn.jsdelivr.net/gh/googlefonts/noto-cjk@main/Sans/OTF/SimplifiedChinese/NotoSansSC-Regular.otf',
-    'https://fonts.gstatic.com/s/notosanssc/v36/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaG9_FnYxNbPzS5HE.woff2',
-  ];
-  
-  for (const url of cdnUrls) {
-    try {
-      const response = await fetch(url, { 
-        timeout: 15000,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-      });
-      if (!response.ok) continue;
-      const fontBytes = await response.arrayBuffer();
-      return await pdfDoc.embedFont(fontBytes);
-    } catch (e) {
-      console.warn(`Failed to load font from ${url}:`, e);
-      continue;
-    }
-  }
-  
-  console.error('All font loading attempts failed');
-  throw new Error('无法加载中文字体，请检查网络连接或联系管理员');
-}
 
 function parseMultipart(buf, boundary) {
   const parts = [];
@@ -158,7 +99,7 @@ export default async function handler(req, res) {
     }
 
     const pdfDoc = await PDFDocument.create();
-    const font = await loadChineseFont(pdfDoc);
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const fontSize = 12;
     const margin = 50;
     const pageWidth = 595.28;
