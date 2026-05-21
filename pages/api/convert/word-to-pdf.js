@@ -1,6 +1,8 @@
 import mammoth from 'mammoth';
 import { PDFDocument, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
+import fs from 'fs';
+import path from 'path';
 
 export const config = {
   api: {
@@ -10,44 +12,30 @@ export const config = {
 };
 
 async function loadChineseFont(pdfDoc) {
-  try {
-    const fontUrl = 'https://cdn.jsdelivr.net/npm/chinese-font@latest/dist/NotoSansSC-Regular.ttf';
-    const fontResponse = await fetch(fontUrl);
-    if (!fontResponse.ok) {
-      throw new Error('Failed to fetch font');
-    }
-    const fontBytes = await fontResponse.arrayBuffer();
-    pdfDoc.registerFontkit(fontkit);
-    return await pdfDoc.embedFont(fontBytes);
-  } catch (error) {
-    console.warn('Failed to load Chinese font, using fallback:', error);
-    const fontUrl2 = 'https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansSC-Regular.otf';
-    try {
-      const fontResponse2 = await fetch(fontUrl2);
-      if (!fontResponse2.ok) throw new Error('Fallback font failed');
-      const fontBytes2 = await fontResponse2.arrayBuffer();
-      pdfDoc.registerFontkit(fontkit);
-      return await pdfDoc.embedFont(fontBytes2);
-    } catch (error2) {
-      const cdnFonts = [
-        'https://fonts.gstatic.com/s/notosanssc/v36/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaG9_FnYxNbPzS5HE.woff2',
-        'https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/webfonts/fa-solid-900.ttf'
-      ];
-      for (const url of cdnFonts) {
-        try {
-          const resp = await fetch(url);
-          if (resp.ok) {
-            const bytes = await resp.arrayBuffer();
-            pdfDoc.registerFontkit(fontkit);
-            return await pdfDoc.embedFont(bytes);
-          }
-        } catch (e) {
-          continue;
-        }
+  pdfDoc.registerFontkit(fontkit);
+  
+  const fontPaths = [
+    path.join(process.cwd(), 'fonts/NotoSansSC-Regular.otf'),
+    '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+    '/usr/share/fonts/truetype/arphic/ukai.ttc',
+    '/usr/share/fonts/truetype/arphic/uming.ttc',
+    '/usr/share/fonts/opentype/noto/NotoSansCJK-SC.otf',
+    '/usr/share/fonts/truetype/noto/NotoSansSC-Regular.ttf',
+  ];
+  
+  for (const fontPath of fontPaths) {
+    if (fs.existsSync(fontPath)) {
+      try {
+        const fontBytes = fs.readFileSync(fontPath);
+        return await pdfDoc.embedFont(fontBytes);
+      } catch (e) {
+        console.warn(`Failed to load font from ${fontPath}:`, e);
+        continue;
       }
-      throw new Error('Unable to load any Chinese font');
     }
   }
+  
+  throw new Error('No Chinese font found.');
 }
 
 function parseMultipart(buf, boundary) {
