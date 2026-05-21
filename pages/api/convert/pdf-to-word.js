@@ -20,7 +20,7 @@ function parseMultipart(buf, boundary) {
     const bodyStart = headerEnd + 4;
     const nextBoundary = str.indexOf(boundaryStr, bodyStart);
     if (nextBoundary === -1) break;
-    const bodyEnd = nextBoundary - 2; // remove \r\n before boundary
+    const bodyEnd = nextBoundary - 2;
 
     const headerBlock = str.substring(start + boundaryStr.length + 2, headerEnd);
     const nameMatch = headerBlock.match(/name="([^"]+)"/);
@@ -64,15 +64,23 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: '未找到上传的文件' });
     }
 
-    // Parse PDF
-    const pdfData = await pdf(filePart.data);
-    const text = pdfData.text || '';
-
-    if (!text.trim()) {
-      return res.status(400).json({ error: 'PDF文件内容为空或无法解析' });
+    let text;
+    try {
+      const pdfData = await pdf(filePart.data);
+      text = pdfData.text || '';
+    } catch (parseError) {
+      console.error('PDF parsing error:', parseError);
+      return res.status(400).json({ 
+        error: '无法解析PDF文件内容。可能是扫描版PDF或加密PDF，请确保PDF包含可提取的文字内容。' 
+      });
     }
 
-    // Build Word document
+    if (!text.trim()) {
+      return res.status(400).json({ 
+        error: 'PDF文件内容为空。这可能是扫描版PDF（图片转PDF），请使用包含文字内容的PDF文件。' 
+      });
+    }
+
     const lines = text.split('\n').filter(l => l.trim());
     const children = [];
 
@@ -80,7 +88,6 @@ export default async function handler(req, res) {
       const trimmed = line.trim();
       if (!trimmed) continue;
 
-      // Detect headings (short lines that look like titles)
       const isHeading = trimmed.length < 50 && !trimmed.endsWith('。') && !trimmed.endsWith('.') && !trimmed.includes('，');
 
       if (isHeading && children.length > 0) {
@@ -114,7 +121,6 @@ export default async function handler(req, res) {
       }
     }
 
-    // Add metadata
     children.unshift(
       new Paragraph({
         children: [
