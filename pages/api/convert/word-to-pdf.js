@@ -128,13 +128,19 @@ export default async function handler(req, res) {
   }
 
   try {
+    console.log('=== Word to PDF Conversion Started ===');
+    console.log('Time:', new Date().toISOString());
+    
     const chunks = [];
     for await (const chunk of req) {
       chunks.push(chunk);
     }
     const buf = Buffer.concat(chunks);
+    console.log('Received data:', buf.length, 'bytes');
 
     const contentType = req.headers['content-type'] || '';
+    console.log('Content-Type:', contentType);
+    
     const boundaryMatch = contentType.match(/boundary=(.+)/);
     if (!boundaryMatch) {
       return res.status(400).json({ error: '无效的请求格式' });
@@ -146,6 +152,9 @@ export default async function handler(req, res) {
     if (!filePart || !filePart.data) {
       return res.status(400).json({ error: '未找到上传的文件' });
     }
+    
+    console.log('File name:', filePart.filename);
+    console.log('File size:', filePart.data.length, 'bytes');
 
     const result = await mammoth.convertToHtml({ buffer: filePart.data });
     const html = result.value;
@@ -159,6 +168,8 @@ export default async function handler(req, res) {
     if (!plainText.trim()) {
       return res.status(400).json({ error: 'Word文件内容为空，无法提取文字进行转换' });
     }
+    
+    console.log('Extracted text length:', plainText.length, 'characters');
 
     const pdfDoc = await PDFDocument.create();
     const font = await loadChineseFont(pdfDoc);

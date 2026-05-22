@@ -1,3 +1,26 @@
 {
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "functions": {
+    "pages/api/convert/word-to-pdf.js": {
+      "memory": 256,
+      "maxDuration": 60
+    },
+    "pages/api/convert/pdf-to-word.js": {
+      "memory": 256,
+      "maxDuration": 60
+    }
+  },
+  "routes": [
+    {
+      "src": "/fonts/(.*)",
+      "dest": "/fonts/$1",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    }
+  ],
+  "env": {
+    "NODE_OPTIONS": "--max-old-space-size=512"
+  }
 }
