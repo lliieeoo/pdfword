@@ -15,10 +15,10 @@ async function loadChineseFont(pdfDoc) {
   pdfDoc.registerFontkit(fontkit);
   
   const fontPaths = [
-    path.join(process.cwd(), 'fonts/NotoSansSC-Regular.ttf'),
     path.join(process.cwd(), 'fonts/NotoSansSC-Regular.otf'),
-    path.join(process.cwd(), 'fonts/SourceHanSans-Regular.otf'),
     path.join(process.cwd(), 'fonts/WenQuanYiMicroHei.ttf'),
+    path.join(process.cwd(), 'fonts/NotoSansSC-Regular.ttf'),
+    path.join(process.cwd(), 'fonts/SourceHanSans-Regular.otf'),
   ];
   
   for (const fontPath of fontPaths) {
@@ -47,11 +47,14 @@ async function loadChineseFont(pdfDoc) {
           continue;
         }
         
+        if (fontType === 'TTC') {
+          console.log(`Skipping TTC font (not supported): ${fontPath}`);
+          continue;
+        }
+        
         console.log(`Attempting to load font from ${fontPath} (${fontType}, ${(fontBuffer.length/1024/1024).toFixed(2)}MB)`);
         
-        const font = fontType === 'TTC'
-          ? await pdfDoc.embedFont(fontBuffer)
-          : await pdfDoc.embedFont(fontBuffer, { subset: true });
+        const font = await pdfDoc.embedFont(fontBuffer, { subset: true });
         
         console.log(`✓ Successfully loaded font from ${fontPath}`);
         return font;
