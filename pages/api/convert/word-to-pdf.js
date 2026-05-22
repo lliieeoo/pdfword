@@ -1,5 +1,5 @@
 import mammoth from 'mammoth';
-import { PDFDocument, rgb } from 'pdf-lib';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import fs from 'fs';
 import path from 'path';
@@ -14,14 +14,57 @@ export const config = {
 async function loadChineseFont(pdfDoc) {
   pdfDoc.registerFontkit(fontkit);
   
-  const fontPath = path.join(process.cwd(), 'fonts/NotoSansSC-Regular.ttf');
+  const fontPaths = [
+    path.join(process.cwd(), 'fonts/NotoSansSC-Regular.ttf'),
+    path.join(process.cwd(), 'fonts/NotoSansSC-Regular.otf'),
+    path.join(process.cwd(), 'fonts/SourceHanSans-Regular.otf'),
+    path.join(process.cwd(), 'fonts/WenQuanYiMicroHei.ttf'),
+  ];
   
-  if (fs.existsSync(fontPath)) {
-    const fontBytes = fs.readFileSync(fontPath);
-    return await pdfDoc.embedFont(fontBytes);
+  for (const fontPath of fontPaths) {
+    if (fs.existsSync(fontPath)) {
+      try {
+        const fontBytes = fs.readFileSync(fontPath);
+        const fontBuffer = Buffer.from(fontBytes);
+        
+        if (fontBuffer.length < 10000) {
+          continue;
+        }
+        
+        const signature = fontBuffer.slice(0, 4).toString('hex');
+        const validSignatures = {
+          '00010000': 'TTF',
+          '74727565': 'TrueType',
+          '4f54544f': 'OTF/CFF',
+          '77474758': 'WOFF',
+          '774f4632': 'WOFF2',
+          '74746366': 'TTC'
+        };
+        
+        const fontType = validSignatures[signature];
+        if (!fontType) {
+          console.error(`Unknown font signature in ${fontPath}: ${signature}`);
+          continue;
+        }
+        
+        console.log(`Attempting to load font from ${fontPath} (${fontType}, ${(fontBuffer.length/1024/1024).toFixed(2)}MB)`);
+        
+        const font = fontType === 'TTC'
+          ? await pdfDoc.embedFont(fontBuffer)
+          : await pdfDoc.embedFont(fontBuffer, { subset: true });
+        
+        console.log(`✓ Successfully loaded font from ${fontPath}`);
+        return font;
+      } catch (embedError) {
+        console.error(`Failed to embed font from ${fontPath}:`, embedError.message);
+        continue;
+      }
+    }
   }
   
-  throw new Error('字体文件未找到');
+  console.warn('⚠ No Chinese font available, using Helvetica');
+  const standardFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  return standardFont;
 }
 
 function parseMultipart(buf, boundary) {
