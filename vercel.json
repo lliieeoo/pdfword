@@ -4,11 +4,13 @@
   "functions": {
     "pages/api/convert/word-to-pdf.js": {
       "memory": 256,
-      "maxDuration": 60
+      "maxDuration": 60,
+      "bodySizeLimit": "50mb"
     },
     "pages/api/convert/pdf-to-word.js": {
       "memory": 256,
-      "maxDuration": 60
+      "maxDuration": 60,
+      "bodySizeLimit": "50mb"
     }
   },
   "routes": [
@@ -22,5 +24,10 @@
   ],
   "env": {
     "NODE_OPTIONS": "--max-old-space-size=512"
+  },
+  "build": {
+    "env": {
+      "NEXT_PUBLIC_MAX_FILE_SIZE": "52428800"
+    }
   }
 }
