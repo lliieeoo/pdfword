@@ -14,7 +14,7 @@ export const config = {
 async function loadChineseFont(pdfDoc) {
   pdfDoc.registerFontkit(fontkit);
   
-  const fontPath = path.join(process.cwd(), 'fonts/NotoSansSC-Regular.otf');
+  const fontPath = path.join(process.cwd(), 'fonts/NotoSansSC-Regular.ttf');
   
   if (fs.existsSync(fontPath)) {
     const fontBytes = fs.readFileSync(fontPath);
