@@ -1,5 +1,8 @@
 import mammoth from 'mammoth';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument, rgb } from 'pdf-lib';
+import fontkit from '@pdf-lib/fontkit';
+import fs from 'fs';
+import path from 'path';
 
 export const config = {
   api: {
@@ -7,6 +10,19 @@ export const config = {
     responseLimit: false,
   },
 };
+
+async function loadChineseFont(pdfDoc) {
+  pdfDoc.registerFontkit(fontkit);
+  
+  const fontPath = path.join(process.cwd(), 'fonts/NotoSansSC-Regular.otf');
+  
+  if (fs.existsSync(fontPath)) {
+    const fontBytes = fs.readFileSync(fontPath);
+    return await pdfDoc.embedFont(fontBytes);
+  }
+  
+  throw new Error('字体文件未找到');
+}
 
 function parseMultipart(buf, boundary) {
   const parts = [];
@@ -99,7 +115,7 @@ export default async function handler(req, res) {
     }
 
     const pdfDoc = await PDFDocument.create();
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const font = await loadChineseFont(pdfDoc);
     const fontSize = 12;
     const margin = 50;
     const pageWidth = 595.28;
