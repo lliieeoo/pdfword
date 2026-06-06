@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Browser-side PDF parser using pdfjs-dist.
  * Parses PDF files page by page to extract text content.
  * Automatically detects if the PDF is scanned (no extractable text).
@@ -11,8 +11,7 @@ let initialized = false;
 async function ensurePdfJs() {
   if (initialized) return;
   pdfjsLib = await import("pdfjs-dist");
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js";
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
   initialized = true;
 }
 
