@@ -75,11 +75,12 @@ export default async function handler(
 
     const xlsxBuffer = await workbook.xlsx.writeBuffer();
 
+    const encodedName = encodeURIComponent(fileName);
     res.setHeader(
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     );
-    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+    res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodedName}`);
     res.setHeader("Content-Length", xlsxBuffer.byteLength);
     res.status(200).send(Buffer.from(xlsxBuffer));
   } catch (err) {

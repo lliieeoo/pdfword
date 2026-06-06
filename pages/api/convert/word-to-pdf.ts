@@ -121,8 +121,9 @@ export default async function handler(
 
     const pdfBytes = await pdfDoc.save();
 
+    const encodedName = encodeURIComponent(fileName);
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+    res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodedName}`);
     res.setHeader("Content-Length", pdfBytes.length);
     res.status(200).send(Buffer.from(pdfBytes));
   } catch (err) {

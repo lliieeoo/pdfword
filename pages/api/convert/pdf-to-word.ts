@@ -52,11 +52,12 @@ export default async function handler(
 
     const docxBytes = await Packer.toBuffer(doc);
 
+    const encodedName = encodeURIComponent(fileName);
     res.setHeader(
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     );
-    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+    res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodedName}`);
     res.setHeader("Content-Length", docxBytes.length);
     res.status(200).send(docxBytes);
   } catch (err) {
